@@ -1,0 +1,125 @@
+/* Custom Styles for Shidy's Fit */
+:root {
+  --neon-cyan: #00F0FF;
+  --neon-pink: #FF3366;
+  --dark-bg: #0A0A0A;
+}
+
+body {
+  background-color: var(--dark-bg);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-pink);
+}
+
+/* Glassmorphism Classes */
+.glass-nav {
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.glass-panel {
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Scroll Animations */
+.slide-up-1 {
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.slide-up-2 {
+  animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}
+
+.slide-up-3 {
+  animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both;
+}
+
+.slide-up-4 {
+  animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Chat Styles */
+.chat-bubble-sent {
+  background: linear-gradient(135deg, var(--neon-pink) 0%, #D41A4C 100%);
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 15px rgba(255, 51, 102, 0.2);
+}
+
+.chat-bubble-received {
+  background: #1f1f1f;
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Pulse animation for live indicators */
+.live-indicator {
+  box-shadow: 0 0 0 0 rgba(0, 240, 255, 0.7);
+  animation: pulse-neon 2s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes pulse-neon {
+  to {
+    box-shadow: 0 0 0 15px rgba(0, 240, 255, 0);
+  }
+}
+
+/* Class Table/Calendar styling */
+.schedule-slot:hover {
+  background: rgba(255, 51, 102, 0.1);
+  border-left-color: var(--neon-pink);
+}
