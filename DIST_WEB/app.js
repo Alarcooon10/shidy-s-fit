@@ -9,8 +9,8 @@ const supabaseUrl = 'https://uxnzsgijsexukacnleuv.supabase.co';
 const supabaseKey = 'sb_publishable_ViK55IUVr-jZ0qOI-g8tSg_EhlzRmgl';
 
 // CONFIGURACIÓN DE URL (Producción vs Local)
-const IS_PRODUCTION = false; // <-- CAMBIAR A 'true' CUANDO DESPLIEGUES EL BACKEND
-const BACKEND_URL = IS_PRODUCTION ? 'https://tu-aplicacion-backend.onrender.com' : 'http://localhost:4242';
+const IS_PRODUCTION = true; // <-- CAMBIAR A 'true' CUANDO DESPLIEGUES EL BACKEND
+const BACKEND_URL = IS_PRODUCTION ? 'https://shidys-backend.onrender.com' : 'http://localhost:4242';
 const STRIPE_PRICE_ID = 'price_1TFWbCD1rba89JLrgUakDKKv';
 
 // Variables y estado global
