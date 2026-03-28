@@ -1045,8 +1045,9 @@ let currentClassDay = -1; // -1 significa "autodetectar hoy"
 
 function switchClassDay(dayIndex) {
     currentClassDay = dayIndex;
-    
-    // 1. Actualizar Tabs (Móvil)
+    const isWeekend = dayIndex >= 5;
+
+    // 1. Actualizar Tabs
     document.querySelectorAll('.day-tab-btn').forEach((btn, i) => {
         if (i === dayIndex) {
             btn.classList.add('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
@@ -1057,17 +1058,25 @@ function switchClassDay(dayIndex) {
         }
     });
 
-    // 2. Actualizar Columnas
+    // 2. Mostrar/Ocultar mensaje de fin de semana vs rejilla
+    const weekendMsg = document.getElementById('schedule-weekend-msg');
+    const grid = document.getElementById('schedule-grid');
+    if (weekendMsg) weekendMsg.classList.toggle('hidden', !isWeekend);
+    if (grid) grid.classList.toggle('hidden', isWeekend);
+
+    if (isWeekend) return; // No hace falta actualizar columnas
+
+    // 3. Actualizar Columnas (solo días L-V)
     document.querySelectorAll('.day-col').forEach(col => {
         if (col.classList.contains(`day-col-${dayIndex}`)) {
             col.classList.remove('hidden');
         } else {
             col.classList.add('hidden');
-            col.classList.add('md:block'); // Seguir viéndose en escritorio
+            col.classList.add('md:block');
         }
     });
 
-    // 3. Actualizar Headers (Escritorio - Visual únicamente)
+    // 4. Actualizar Headers
     document.querySelectorAll('[id^="day-header-"]').forEach((header, i) => {
         header.classList.remove('bg-brand/10', 'text-brand');
         header.classList.add('text-gray-400');
@@ -1138,19 +1147,7 @@ async function initClasses() {
         } catch(e) { console.error("Error fetching all reservations:", e); }
     }
 
-    // 3. Renderizar Rejilla
-    // Si es fin de semana, mostrar mensaje especial directamente
-    if (currentClassDay >= 5) {
-        gridEl.innerHTML = `
-            <div class="py-20 flex flex-col items-center justify-center text-center text-gray-600">
-                <i class="fa-solid fa-moon text-4xl mb-4 opacity-40"></i>
-                <p class="text-sm font-bold uppercase tracking-widest">No hay clases</p>
-            </div>
-        `;
-        switchClassDay(currentClassDay);
-        return;
-    }
-
+    // 3. Renderizar Rejilla siempre (el mensaje de fin de semana lo gestiona switchClassDay)
     let html = '';
     scheduleData.times.forEach((time, rowIndex) => {
         let colsHTML = '';
