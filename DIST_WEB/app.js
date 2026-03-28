@@ -1041,11 +1041,48 @@ const scheduleData = {
     ]
 };
 
+let currentClassDay = -1; // -1 significa "autodetectar hoy"
+
+function switchClassDay(dayIndex) {
+    currentClassDay = dayIndex;
+    
+    // 1. Actualizar Tabs (Móvil)
+    document.querySelectorAll('.day-tab-btn').forEach((btn, i) => {
+        if (i === dayIndex) {
+            btn.classList.add('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
+            btn.classList.remove('text-gray-400');
+        } else {
+            btn.classList.remove('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
+            btn.classList.add('text-gray-400');
+        }
+    });
+
+    // 2. Actualizar Columnas
+    document.querySelectorAll('.day-col').forEach(col => {
+        if (col.classList.contains(`day-col-${dayIndex}`)) {
+            col.classList.remove('hidden');
+        } else {
+            col.classList.add('hidden');
+            col.classList.add('md:block'); // Seguir viéndose en escritorio
+        }
+    });
+
+    // 3. Actualizar Headers (Escritorio - Visual únicamente)
+    document.querySelectorAll('[id^="day-header-"]').forEach((header, i) => {
+        header.classList.remove('bg-brand/10', 'text-brand');
+        header.classList.add('text-gray-400');
+        if (i === dayIndex) {
+            header.classList.add('bg-brand/10', 'text-brand');
+            header.classList.remove('text-gray-400');
+        }
+    });
+}
+
 async function initClasses() {
     const gridEl = document.getElementById('schedule-grid');
     if(!gridEl) return;
     
-    // Mostrar spinner mientras cargan datos reales
+    // Mostrar spinner
     gridEl.innerHTML = `
         <div class="col-span-full py-20 text-center">
             <i class="fa-solid fa-spinner fa-spin text-4xl text-brand mb-4"></i>
@@ -1053,7 +1090,44 @@ async function initClasses() {
         </div>
     `;
 
-    // Cargar reservas globales para calcular ocupación
+    // 1. Calcular fechas de la semana (Lunes a Viernes)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 (Dom) a 6 (Sab)
+    
+    // Si es hoy, queremos que sea el tab activo (al menos de Luer-Vier)
+    if (currentClassDay === -1) {
+        currentClassDay = (dayOfWeek >= 1 && dayOfWeek <= 5) ? dayOfWeek - 1 : 0;
+    }
+
+    const currentMonday = new Date(today);
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    currentMonday.setDate(diff);
+
+    const weekDates = [];
+    const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+    const dayNamesFull = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+
+    for (let i = 0; i < 5; i++) {
+        const d = new Date(currentMonday);
+        d.setDate(currentMonday.getDate() + i);
+        const dayNum = d.getDate();
+        const monthNum = d.getMonth() + 1;
+        const dateStr = `${dayNum}/${monthNum < 10 ? '0' + monthNum : monthNum}`;
+        
+        weekDates.push(dateStr);
+
+        // Actualizar UI de Headers/Tabs si existen
+        const header = document.getElementById(`day-header-${i}`);
+        const tab = document.getElementById(`day-tab-${i}`);
+        
+        const label = `${dayNamesFull[i]} (${dateStr})`;
+        const shortLabel = `${dayNamesShort[i]} ${dateStr}`;
+
+        if (header) header.innerText = label;
+        if (tab) tab.innerText = shortLabel;
+    }
+
+    // 2. Cargar datos de Supabase
     let allReservations = [];
     if (supabaseClient) {
         try {
@@ -1062,40 +1136,31 @@ async function initClasses() {
         } catch(e) { console.error("Error fetching all reservations:", e); }
     }
 
+    // 3. Renderizar Rejilla
     let html = '';
-    const dayMap = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
-
     scheduleData.times.forEach((time, rowIndex) => {
         let colsHTML = '';
         
         scheduleData.grid[rowIndex].forEach((className, colIndex) => {
-            if(!className) {
-                colsHTML += `
-                    <div class="p-4 border-l md:border-white/5 border-transparent schedule-slot bg-dark-900/10 ${colIndex >= 3 ? 'hidden lg:block' : ''} ${colIndex === 2 ? 'hidden md:block' : ''}">
-                    </div>
-                `;
-                return;
-            }
+            const dayOfWeekName = dayNamesFull[colIndex];
+            const isReservable = className && (className.toLowerCase().includes('skate') || className.toLowerCase().includes('ciclo'));
             
-            const dayOfWeek = dayMap[colIndex] || 'Lunes';
-            const isReservable = className.toLowerCase().includes('skate') || className.toLowerCase().includes('ciclo');
-            
-            let btnHTML = '';
+            let contentHTML = '';
             let highlightClass = 'hover:bg-brand/5';
             let titleColor = 'text-white';
             
-            if (isReservable) {
-                // Calcular ocupación real
+            if (!className) {
+                contentHTML = '';
+            } else if (isReservable) {
                 const totalReservations = allReservations.filter(r => 
                     r.class_name === className && 
                     r.time_slot === time && 
-                    r.day_of_week === dayOfWeek
+                    r.day_of_week === dayOfWeekName
                 );
                 
                 const currentAtte = totalReservations.length; 
                 const maxAtte = 15;
                 const isUserBooked = currentUser && totalReservations.some(r => r.user_id === currentUser.id);
-                
                 const capId = `cap-${rowIndex}-${colIndex}`;
                 
                 const capacityHTML = `
@@ -1108,21 +1173,27 @@ async function initClasses() {
                 titleColor = 'text-neon';
                 
                 if (isUserBooked) {
-                    btnHTML = `
+                    contentHTML = `
+                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
+                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
                         ${capacityHTML}
                         <button class="w-full bg-green-600/20 text-green-500 border border-green-500/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center pointer-events-none">
                             <i class="fa-solid fa-check-double mr-2"></i> Reservado
                         </button>
                     `;
                 } else if (currentAtte >= maxAtte) {
-                    btnHTML = `
+                    contentHTML = `
+                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
+                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
                         ${capacityHTML}
                         <button class="w-full bg-gray-500/10 text-gray-500 border border-gray-500/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center pointer-events-none opacity-50">
                             <i class="fa-solid fa-ban mr-2"></i> Completo
                         </button>
                     `;
                 } else {
-                    btnHTML = `
+                    contentHTML = `
+                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
+                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
                         ${capacityHTML}
                         <button onclick="reserveClass('${className}', '${time}', this, '${capId}')" class="w-full bg-neon/10 text-neon hover:bg-neon hover:text-dark-900 border border-neon/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center">
                             <i class="fa-regular fa-calendar-check mr-2"></i> Reservar
@@ -1130,25 +1201,25 @@ async function initClasses() {
                     `;
                 }
             } else {
-                btnHTML = `<div class="w-full mt-3 text-center text-[10px] text-gray-500 uppercase font-bold border border-white/5 py-2 rounded bg-dark-800 pointer-events-none opacity-50"><i class="fa-solid fa-door-open mr-1"></i> Libre Acceso</div>`;
-            }
-            
-            let responsiveClass = '';
-            if (colIndex === 2) responsiveClass = 'hidden md:block'; 
-            if (colIndex === 3) responsiveClass = 'hidden lg:block'; 
-            if (colIndex === 4) responsiveClass = 'hidden lg:block'; 
-            
-            colsHTML += `
-                <div class="p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass} ${responsiveClass}">
+                contentHTML = `
                     <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
                     <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
-                    ${btnHTML}
+                    <div class="w-full mt-3 text-center text-[10px] text-gray-500 uppercase font-bold border border-white/5 py-2 rounded bg-dark-800 pointer-events-none opacity-50"><i class="fa-solid fa-door-open mr-1"></i> Libre Acceso</div>
+                `;
+            }
+
+            // Visibilidad Responsiva (Móvil usa Tabs, Desktop usa Grid)
+            const isHiddenMobile = colIndex !== currentClassDay ? 'hidden' : '';
+            
+            colsHTML += `
+                <div class="day-col day-col-${colIndex} p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass} ${isHiddenMobile} md:block">
+                    ${contentHTML}
                 </div>
             `;
         });
         
         html += `
-            <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
+            <div class="grid grid-cols-1 md:grid-cols-6 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
                 <div class="p-4 flex flex-col md:flex-row md:items-center justify-center font-heading text-lg text-brand md:text-gray-500 bg-dark-900/30 font-bold whitespace-nowrap group-hover/row:text-white transition-colors">
                     ${time}
                 </div>
@@ -1158,6 +1229,9 @@ async function initClasses() {
     });
     
     gridEl.innerHTML = html;
+    
+    // Al final, refrescar visualmente las pestañas activas
+    switchClassDay(currentClassDay);
 }
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
