@@ -1090,13 +1090,16 @@ async function initClasses() {
         </div>
     `;
 
-    // 1. Calcular fechas de la semana (Lunes a Viernes)
+    // 1. Calcular fechas de la semana completa (Lunes a Domingo)
     const today = new Date();
-    const dayOfWeek = today.getDay(); // 0 (Dom) a 6 (Sab)
+    const dayOfWeek = today.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
     
-    // Si es hoy, queremos que sea el tab activo (al menos de Luer-Vier)
+    // Mapeo: JS getDay() -> indice de nuestro tab (0=Lun, 5=Sab, 6=Dom)
+    const jsToTabIndex = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
+    
+    // Autodetectar hoy la primera vez
     if (currentClassDay === -1) {
-        currentClassDay = (dayOfWeek >= 1 && dayOfWeek <= 5) ? dayOfWeek - 1 : 0;
+        currentClassDay = jsToTabIndex[dayOfWeek];
     }
 
     const currentMonday = new Date(today);
@@ -1104,27 +1107,26 @@ async function initClasses() {
     currentMonday.setDate(diff);
 
     const weekDates = [];
-    const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
-    const dayNamesFull = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+    const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const dayNamesFull  = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 7; i++) {
         const d = new Date(currentMonday);
         d.setDate(currentMonday.getDate() + i);
-        const dayNum = d.getDate();
+        const dayNum  = d.getDate();
         const monthNum = d.getMonth() + 1;
-        const dateStr = `${dayNum}/${monthNum < 10 ? '0' + monthNum : monthNum}`;
+        const dateStr  = `${dayNum}/${monthNum < 10 ? '0' + monthNum : monthNum}`;
         
         weekDates.push(dateStr);
 
-        // Actualizar UI de Headers/Tabs si existen
         const header = document.getElementById(`day-header-${i}`);
-        const tab = document.getElementById(`day-tab-${i}`);
+        const tab    = document.getElementById(`day-tab-${i}`);
         
-        const label = `${dayNamesFull[i]} (${dateStr})`;
+        const label      = `${dayNamesFull[i]} (${dateStr})`;
         const shortLabel = `${dayNamesShort[i]} ${dateStr}`;
 
         if (header) header.innerText = label;
-        if (tab) tab.innerText = shortLabel;
+        if (tab)    tab.innerText    = shortLabel;
     }
 
     // 2. Cargar datos de Supabase
@@ -1137,6 +1139,18 @@ async function initClasses() {
     }
 
     // 3. Renderizar Rejilla
+    // Si es fin de semana, mostrar mensaje especial directamente
+    if (currentClassDay >= 5) {
+        gridEl.innerHTML = `
+            <div class="py-20 flex flex-col items-center justify-center text-center text-gray-600">
+                <i class="fa-solid fa-moon text-4xl mb-4 opacity-40"></i>
+                <p class="text-sm font-bold uppercase tracking-widest">No hay clases</p>
+            </div>
+        `;
+        switchClassDay(currentClassDay);
+        return;
+    }
+
     let html = '';
     scheduleData.times.forEach((time, rowIndex) => {
         let colsHTML = '';
@@ -1217,9 +1231,15 @@ async function initClasses() {
                 </div>
             `;
         });
-        
+
+        // Añadir columnas vacías para Sábado y Domingo en escritorio
+        colsHTML += `
+            <div class="day-col day-col-5 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
+            <div class="day-col day-col-6 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
+        `;
+
         html += `
-            <div class="grid grid-cols-1 md:grid-cols-6 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
+            <div class="grid grid-cols-1 md:grid-cols-8 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
                 <div class="p-4 flex flex-col md:flex-row md:items-center justify-center font-heading text-lg text-brand md:text-gray-500 bg-dark-900/30 font-bold whitespace-nowrap group-hover/row:text-white transition-colors">
                     ${time}
                 </div>
