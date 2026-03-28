@@ -1049,49 +1049,38 @@ function switchClassDay(dayIndex) {
 
     // 1. Actualizar Tabs
     document.querySelectorAll('.day-tab-btn').forEach((btn, i) => {
-        if (i === dayIndex) {
-            btn.classList.add('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
-            btn.classList.remove('text-gray-400');
-        } else {
-            btn.classList.remove('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
-            btn.classList.add('text-gray-400');
-        }
+        const active = i === dayIndex;
+        btn.classList.toggle('bg-brand/10', active);
+        btn.classList.toggle('text-brand', active);
+        btn.classList.toggle('border-b-2', active);
+        btn.classList.toggle('border-brand', active);
+        btn.classList.toggle('text-gray-400', !active);
     });
 
-    // 2. Mostrar/Ocultar mensaje de fin de semana vs rejilla
+    // 2. Mostrar/Ocultar mensaje fin de semana vs rejilla (con style para fiabilidad)
     const weekendMsg = document.getElementById('schedule-weekend-msg');
-    const grid = document.getElementById('schedule-grid');
-    if (weekendMsg) weekendMsg.classList.toggle('hidden', !isWeekend);
-    if (grid) grid.classList.toggle('hidden', isWeekend);
+    const gridEl     = document.getElementById('schedule-grid');
+    if (weekendMsg) weekendMsg.style.display = isWeekend ? 'flex' : 'none';
+    if (gridEl)     gridEl.style.display     = isWeekend ? 'none' : 'flex';
 
-    // 3. Actualizar Headers (siempre, incluso fin de semana)
+    // 3. Actualizar Headers de escritorio
     document.querySelectorAll('[id^="day-header-"]').forEach((header, i) => {
         header.classList.remove('bg-brand/10', 'text-brand', 'text-gray-400', 'text-gray-600');
         header.classList.add(i >= 5 ? 'text-gray-600' : 'text-gray-400');
-        if (i === dayIndex) {
-            header.classList.add('bg-brand/10', 'text-brand');
-        }
+        if (i === dayIndex) header.classList.add('bg-brand/10', 'text-brand');
     });
 
-    if (isWeekend) return; // Fin de semana: no actualizar columnas
+    if (isWeekend) return;
 
-    // 4. Actualizar Columnas (solo días L-V)
+    // 4. Mostrar/Ocultar columnas de días: en móvil solo el día activo, en escritorio todos
+    const isMobile = window.innerWidth < 768;
     document.querySelectorAll('.day-col').forEach(col => {
-        if (col.classList.contains(`day-col-${dayIndex}`)) {
-            col.classList.remove('hidden');
+        const colDay = parseInt(col.dataset.day);
+        if (isMobile) {
+            col.style.display = colDay === dayIndex ? 'block' : 'none';
         } else {
-            col.classList.add('hidden');
-            col.classList.add('md:block');
-        }
-    });
-
-    // 4. Actualizar Headers
-    document.querySelectorAll('[id^="day-header-"]').forEach((header, i) => {
-        header.classList.remove('bg-brand/10', 'text-brand');
-        header.classList.add('text-gray-400');
-        if (i === dayIndex) {
-            header.classList.add('bg-brand/10', 'text-brand');
-            header.classList.remove('text-gray-400');
+            // Escritorio: ocultar sólo las columnas de fin de semana
+            col.style.display = colDay >= 5 ? 'none' : 'block';
         }
     });
 }
@@ -1228,20 +1217,18 @@ async function initClasses() {
                 `;
             }
 
-            // Visibilidad Responsiva (Móvil usa Tabs, Desktop usa Grid)
-            const isHiddenMobile = colIndex !== currentClassDay ? 'hidden' : '';
-            
+            // Visibilidad: Se controla con data-day y style.display desde switchClassDay
             colsHTML += `
-                <div class="day-col day-col-${colIndex} p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass} ${isHiddenMobile} md:block">
+                <div class="day-col p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass}" data-day="${colIndex}">
                     ${contentHTML}
                 </div>
             `;
         });
 
-        // Añadir columnas vacías para Sábado y Domingo en escritorio
+        // Columnas de Sábado y Domingo en escritorio (siempre ocultas, solo decorá la cabecera)
         colsHTML += `
-            <div class="day-col day-col-5 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
-            <div class="day-col day-col-6 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
+            <div class="day-col p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20" data-day="5" style="display:none"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
+            <div class="day-col p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20" data-day="6" style="display:none"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
         `;
 
         html += `
