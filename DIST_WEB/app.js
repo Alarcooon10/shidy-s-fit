@@ -9,8 +9,8 @@ const supabaseUrl = 'https://uxnzsgijsexukacnleuv.supabase.co';
 const supabaseKey = 'sb_publishable_ViK55IUVr-jZ0qOI-g8tSg_EhlzRmgl';
 
 // CONFIGURACIÓN DE URL (Producción vs Local)
-const IS_PRODUCTION = true; // <-- CAMBIAR A 'true' CUANDO DESPLIEGUES EL BACKEND
-const BACKEND_URL = IS_PRODUCTION ? 'https://shidys-backend.onrender.com' : 'http://localhost:4242';
+const IS_PRODUCTION = false; // <-- CAMBIAR A 'true' CUANDO DESPLIEGUES EL BACKEND
+const BACKEND_URL = IS_PRODUCTION ? 'https://tu-aplicacion-backend.onrender.com' : 'http://localhost:4242';
 const STRIPE_PRICE_ID = 'price_1TFWbCD1rba89JLrgUakDKKv';
 
 // Variables y estado global
@@ -1041,57 +1041,11 @@ const scheduleData = {
     ]
 };
 
-let currentClassDay = -1; // -1 significa "autodetectar hoy"
-
-function switchClassDay(dayIndex) {
-    currentClassDay = dayIndex;
-    const isWeekend = dayIndex >= 5;
-
-    // 1. Actualizar Tabs
-    document.querySelectorAll('.day-tab-btn').forEach((btn, i) => {
-        if (i === dayIndex) {
-            btn.classList.add('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
-            btn.classList.remove('text-gray-400');
-        } else {
-            btn.classList.remove('bg-brand/10', 'text-brand', 'border-b-2', 'border-brand');
-            btn.classList.add('text-gray-400');
-        }
-    });
-
-    // 2. Mostrar/Ocultar mensaje de fin de semana vs rejilla
-    const weekendMsg = document.getElementById('schedule-weekend-msg');
-    const grid = document.getElementById('schedule-grid');
-    if (weekendMsg) weekendMsg.classList.toggle('hidden', !isWeekend);
-    if (grid) grid.classList.toggle('hidden', isWeekend);
-
-    if (isWeekend) return; // No hace falta actualizar columnas
-
-    // 3. Actualizar Columnas (solo días L-V)
-    document.querySelectorAll('.day-col').forEach(col => {
-        if (col.classList.contains(`day-col-${dayIndex}`)) {
-            col.classList.remove('hidden');
-        } else {
-            col.classList.add('hidden');
-            col.classList.add('md:block');
-        }
-    });
-
-    // 4. Actualizar Headers
-    document.querySelectorAll('[id^="day-header-"]').forEach((header, i) => {
-        header.classList.remove('bg-brand/10', 'text-brand');
-        header.classList.add('text-gray-400');
-        if (i === dayIndex) {
-            header.classList.add('bg-brand/10', 'text-brand');
-            header.classList.remove('text-gray-400');
-        }
-    });
-}
-
 async function initClasses() {
     const gridEl = document.getElementById('schedule-grid');
     if(!gridEl) return;
     
-    // Mostrar spinner
+    // Mostrar spinner mientras cargan datos reales
     gridEl.innerHTML = `
         <div class="col-span-full py-20 text-center">
             <i class="fa-solid fa-spinner fa-spin text-4xl text-brand mb-4"></i>
@@ -1099,46 +1053,7 @@ async function initClasses() {
         </div>
     `;
 
-    // 1. Calcular fechas de la semana completa (Lunes a Domingo)
-    const today = new Date();
-    const dayOfWeek = today.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
-    
-    // Mapeo: JS getDay() -> indice de nuestro tab (0=Lun, 5=Sab, 6=Dom)
-    const jsToTabIndex = { 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6 };
-    
-    // Autodetectar hoy la primera vez
-    if (currentClassDay === -1) {
-        currentClassDay = jsToTabIndex[dayOfWeek];
-    }
-
-    const currentMonday = new Date(today);
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    currentMonday.setDate(diff);
-
-    const weekDates = [];
-    const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-    const dayNamesFull  = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(currentMonday);
-        d.setDate(currentMonday.getDate() + i);
-        const dayNum  = d.getDate();
-        const monthNum = d.getMonth() + 1;
-        const dateStr  = `${dayNum}/${monthNum < 10 ? '0' + monthNum : monthNum}`;
-        
-        weekDates.push(dateStr);
-
-        const header = document.getElementById(`day-header-${i}`);
-        const tab    = document.getElementById(`day-tab-${i}`);
-        
-        const label      = `${dayNamesFull[i]} (${dateStr})`;
-        const shortLabel = `${dayNamesShort[i]} ${dateStr}`;
-
-        if (header) header.innerText = label;
-        if (tab)    tab.innerText    = shortLabel;
-    }
-
-    // 2. Cargar datos de Supabase
+    // Cargar reservas globales para calcular ocupación
     let allReservations = [];
     if (supabaseClient) {
         try {
@@ -1147,31 +1062,40 @@ async function initClasses() {
         } catch(e) { console.error("Error fetching all reservations:", e); }
     }
 
-    // 3. Renderizar Rejilla siempre (el mensaje de fin de semana lo gestiona switchClassDay)
     let html = '';
+    const dayMap = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+
     scheduleData.times.forEach((time, rowIndex) => {
         let colsHTML = '';
         
         scheduleData.grid[rowIndex].forEach((className, colIndex) => {
-            const dayOfWeekName = dayNamesFull[colIndex];
-            const isReservable = className && (className.toLowerCase().includes('skate') || className.toLowerCase().includes('ciclo'));
+            if(!className) {
+                colsHTML += `
+                    <div class="p-4 border-l md:border-white/5 border-transparent schedule-slot bg-dark-900/10 ${colIndex >= 3 ? 'hidden lg:block' : ''} ${colIndex === 2 ? 'hidden md:block' : ''}">
+                    </div>
+                `;
+                return;
+            }
             
-            let contentHTML = '';
+            const dayOfWeek = dayMap[colIndex] || 'Lunes';
+            const isReservable = className.toLowerCase().includes('skate') || className.toLowerCase().includes('ciclo');
+            
+            let btnHTML = '';
             let highlightClass = 'hover:bg-brand/5';
             let titleColor = 'text-white';
             
-            if (!className) {
-                contentHTML = '';
-            } else if (isReservable) {
+            if (isReservable) {
+                // Calcular ocupación real
                 const totalReservations = allReservations.filter(r => 
                     r.class_name === className && 
                     r.time_slot === time && 
-                    r.day_of_week === dayOfWeekName
+                    r.day_of_week === dayOfWeek
                 );
                 
                 const currentAtte = totalReservations.length; 
                 const maxAtte = 15;
                 const isUserBooked = currentUser && totalReservations.some(r => r.user_id === currentUser.id);
+                
                 const capId = `cap-${rowIndex}-${colIndex}`;
                 
                 const capacityHTML = `
@@ -1184,27 +1108,21 @@ async function initClasses() {
                 titleColor = 'text-neon';
                 
                 if (isUserBooked) {
-                    contentHTML = `
-                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
-                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
+                    btnHTML = `
                         ${capacityHTML}
                         <button class="w-full bg-green-600/20 text-green-500 border border-green-500/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center pointer-events-none">
                             <i class="fa-solid fa-check-double mr-2"></i> Reservado
                         </button>
                     `;
                 } else if (currentAtte >= maxAtte) {
-                    contentHTML = `
-                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
-                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
+                    btnHTML = `
                         ${capacityHTML}
                         <button class="w-full bg-gray-500/10 text-gray-500 border border-gray-500/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center pointer-events-none opacity-50">
                             <i class="fa-solid fa-ban mr-2"></i> Completo
                         </button>
                     `;
                 } else {
-                    contentHTML = `
-                        <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
-                        <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
+                    btnHTML = `
                         ${capacityHTML}
                         <button onclick="reserveClass('${className}', '${time}', this, '${capId}')" class="w-full bg-neon/10 text-neon hover:bg-neon hover:text-dark-900 border border-neon/30 text-xs py-2 rounded transition-all uppercase font-bold tracking-wider shadow-sm flex justify-center items-center">
                             <i class="fa-regular fa-calendar-check mr-2"></i> Reservar
@@ -1212,31 +1130,25 @@ async function initClasses() {
                     `;
                 }
             } else {
-                contentHTML = `
-                    <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
-                    <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
-                    <div class="w-full mt-3 text-center text-[10px] text-gray-500 uppercase font-bold border border-white/5 py-2 rounded bg-dark-800 pointer-events-none opacity-50"><i class="fa-solid fa-door-open mr-1"></i> Libre Acceso</div>
-                `;
+                btnHTML = `<div class="w-full mt-3 text-center text-[10px] text-gray-500 uppercase font-bold border border-white/5 py-2 rounded bg-dark-800 pointer-events-none opacity-50"><i class="fa-solid fa-door-open mr-1"></i> Libre Acceso</div>`;
             }
-
-            // Visibilidad Responsiva (Móvil usa Tabs, Desktop usa Grid)
-            const isHiddenMobile = colIndex !== currentClassDay ? 'hidden' : '';
+            
+            let responsiveClass = '';
+            if (colIndex === 2) responsiveClass = 'hidden md:block'; 
+            if (colIndex === 3) responsiveClass = 'hidden lg:block'; 
+            if (colIndex === 4) responsiveClass = 'hidden lg:block'; 
             
             colsHTML += `
-                <div class="day-col day-col-${colIndex} p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass} ${isHiddenMobile} md:block">
-                    ${contentHTML}
+                <div class="p-4 border-l md:border-white/5 border-transparent schedule-slot transition-all group ${highlightClass} ${responsiveClass}">
+                    <span class="block ${titleColor} font-bold mb-1 group-hover:drop-shadow-md transition-all">${className}</span>
+                    <span class="block text-[10px] text-gray-500 mb-2 font-bold"><i class="fa-regular fa-clock mr-1 opacity-50"></i> 45 min</span>
+                    ${btnHTML}
                 </div>
             `;
         });
-
-        // Añadir columnas vacías para Sábado y Domingo en escritorio
-        colsHTML += `
-            <div class="day-col day-col-5 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
-            <div class="day-col day-col-6 hidden md:flex p-4 border-l border-white/5 schedule-slot items-center justify-center opacity-20"><i class="fa-solid fa-moon text-gray-500 text-xl"></i></div>
-        `;
-
+        
         html += `
-            <div class="grid grid-cols-1 md:grid-cols-8 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
+            <div class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 border-b border-white/5 text-sm group/row hover:bg-dark-800/80 transition-colors animate-fade-in-up" style="animation-duration: 0.5s; animation-fill-mode: both; animation-delay: ${rowIndex * 100}ms;">
                 <div class="p-4 flex flex-col md:flex-row md:items-center justify-center font-heading text-lg text-brand md:text-gray-500 bg-dark-900/30 font-bold whitespace-nowrap group-hover/row:text-white transition-colors">
                     ${time}
                 </div>
@@ -1246,9 +1158,6 @@ async function initClasses() {
     });
     
     gridEl.innerHTML = html;
-    
-    // Al final, refrescar visualmente las pestañas activas
-    switchClassDay(currentClassDay);
 }
 
 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
